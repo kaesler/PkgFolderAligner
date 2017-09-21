@@ -1,6 +1,7 @@
-import ammonite.ops._
+#!/usr/bin/env amm
 
-// Code goes here.
+// Usage:
+// ./PackageFolderAlignerScript.sc --scalaProjectRootDir ~/mds/api --containingPackagePath com.banno.api --dryRun true
 
 import scala.io.Codec
 
@@ -9,30 +10,29 @@ import scalaz._
 import ammonite.ops._
 
 /**
- * Function to align the directory structure of an SBT project with
- * the package structure. It will not edit files but only move
- * them. If any files need editing before it can proceed it will
- * report the problems requiring manual repair, and do nothing.
- *
- * TODO: Use "git mv" when appropriate
- */
+  * Function to align the directory structure of an SBT project with
+  * the package structure. It will not edit files but only move
+  * them. If any files need editing before it can proceed it will
+  * report the problems requiring manual repair, and do nothing.
+  *
+  * TODO: Use "git mv" when appropriate
+  */
 object PackageFolderAligner {
 
   /**
-   * If possible without changing any source files, align the
-   * directory structure of an SBT project with the package structure.
-   * It will not edit files but only move them.  If any files need
-   * editing before it can proceed it will report the problems
-   * requiring manual repair, and do nothing.
-   *
-   * @param projectRoot
-   * @param requiredRootPackage
-   * @param reallyDoIt
-   */
-  def alignProject(
-      projectRoot: Path,
-      requiredRootPackage: Option[ParsedPkgDecl],
-      reallyDoIt: Boolean): Unit = {
+    * If possible without changing any source files, align the
+    * directory structure of an SBT project with the package structure.
+    * It will not edit files but only move them.  If any files need
+    * editing before it can proceed it will report the problems
+    * requiring manual repair, and do nothing.
+    *
+    * @param projectRoot the root of the project upon which to operate
+    * @param requiredRootPackage the package path under which all code should reside
+    * @param dryRun if true then dry run only
+    */
+  def alignProject(projectRoot: Path,
+                   requiredRootPackage: Option[ParsedPkgDecl],
+                   dryRun: Boolean): Unit = {
 
     requireToBeAScalaProject(projectRoot)
 
@@ -47,7 +47,7 @@ object PackageFolderAligner {
         move <- movesForScalaSrcTree(tree, requiredRootPackage)
       } yield move
 
-    val moves = attemptedMoves collect { case \/-(move) => move }
+    val moves = attemptedMoves collect { case \/-(move)       => move }
     val badMoves = attemptedMoves collect { case -\/(problem) => problem }
 
     val problems = badMoves ++
@@ -55,11 +55,16 @@ object PackageFolderAligner {
       mkdirProblems(moves)
 
     if (problems.nonEmpty) {
-      println(s"Cannot move about ${moves.size } files until these problems are repaired manually:")
-      println(problems.mkString("\n"))
+      println(
+        s"Cannot move about ${moves.size} files until these problems are repaired manually:"
+      )
+      println(
+        problems
+          .map(_.show)
+          .mkString("\n"))
     } else {
       println(moves.mkString("\n"))
-      if (reallyDoIt) {
+      if (!dryRun) {
         println(s"Moving ${moves.size} files...")
         moves foreach {
           _.execute()
@@ -103,8 +108,10 @@ object PackageFolderAligner {
 
     val foundDirs = expectedDirs filter { _.toIO.isDirectory }
     if (foundDirs.isEmpty) {
-      fail(s"Not a Scala project because there is no directory src/main/scala, src/test/scala nor" +
-        s" src/it/scala")
+      fail(
+        s"Not a Scala project because there is no directory src/main/scala, src/test/scala nor" +
+          s" src/it/scala"
+      )
     }
   }
 
@@ -126,7 +133,6 @@ object PackageFolderAligner {
     canonicalParentFor(file, tree, requiredRootPackage)
       .fold(
         problem => Some(-\/(problem)),
-
         canonicalParent => {
           val currentParent = file / up
           if (canonicalParent != currentParent) {
@@ -196,14 +202,18 @@ object PackageFolderAligner {
     }
   }
 
-  private def packageDeclarations(lines: Vector[String]): Vector[ParsedPkgDecl] = {
+  private def packageDeclarations(
+      lines: Vector[String]
+  ): Vector[ParsedPkgDecl] = {
     for {
       line <- lines
       decl <- ParsedPkgDecl.parseLine(line)
     } yield decl
   }
 
-  private def packageObjectDeclarations(lines: Vector[String]): Vector[ParsedPkgObjectDecl] = {
+  private def packageObjectDeclarations(
+      lines: Vector[String]
+  ): Vector[ParsedPkgObjectDecl] = {
     (for {
       line <- lines
       decl <- ParsedPkgObjectDecl.parseLine(line)
@@ -223,43 +233,43 @@ object PackageFolderAligner {
   }
 
   case class ParsedPkgDecl(parts: Vector[String]) {
-    def ++ (other: ParsedPkgDecl): ParsedPkgDecl = copy(
+    def ++(other: ParsedPkgDecl): ParsedPkgDecl = copy(
       parts = this.parts ++ other.parts
     )
 
-    def + (name: String): ParsedPkgDecl = copy(
-      parts = this.parts :+ name
-    )
+    def +(name: String): ParsedPkgDecl = copy(parts = this.parts :+ name)
 
     def isPrefixOf(that: ParsedPkgDecl): Boolean = {
       val zipped = this.parts zip that.parts
       zipped.size == this.parts.size &&
-        zipped.forall { case (p, q) => p == q }
+      zipped.forall { case (p, q) => p == q }
     }
 
     override def toString: String = {
       s""""package ${parts.mkString(".")}""""
     }
+
+    def toShortString: String = s"""${parts.mkString(".")}"""
   }
 
   object ParsedPkgDecl {
     private val regexp = """^package\s+([a-zA-Z][a-zA-Z0-9\._]*)$""".r
 
     /**
-     * Parse a line containing a package decl
-     * @param line something like "package a.b.c"
-     * @return the [[ParsedPkgDecl]] if found
-     */
+      * Parse a line containing a package decl
+      * @param line something like "package a.b.c"
+      * @return the [[ParsedPkgDecl]] if found
+      */
     def parseLine(line: String): Option[ParsedPkgDecl] = line match {
       case regexp(path) => parsePackagePath(path)
-      case _ => None
+      case _            => None
     }
 
     /**
-     * Parse a string containing a package path
-     * @param path something like "a.b.c"
-     * @return
-     */
+      * Parse a string containing a package path
+      * @param path something like "a.b.c"
+      * @return
+      */
     def parsePackagePath(path: String): Option[ParsedPkgDecl] = {
       val parts = path.split('.')
       if (parts.isEmpty) {
@@ -273,34 +283,63 @@ object PackageFolderAligner {
   private case class ParsedPkgObjectDecl(name: String)
 
   private object ParsedPkgObjectDecl {
-    private val regexp = """^package\s+(object\s+)?([a-zA-Z][a-zA-Z0-9_]*).*\{$""".r
+    private val regexp =
+      """^package\s+(object\s+)?([a-zA-Z][a-zA-Z0-9_]*).*\{$""".r
 
     def parseLine(line: String): Option[ParsedPkgObjectDecl] = line match {
       case regexp(_, name) => Some(ParsedPkgObjectDecl(name))
-      case _ => None
+      case _               => None
     }
   }
 
-  sealed trait Problem
-  private case class MkDirWouldFailDueToFileInTheWay(path: Path) extends Problem
-  private case class MultipleSourcesForDestination(
-      destination: Path,
-      sources: List[Path]) extends Problem
-  private case class NoPackageDeclarations(path: Path) extends Problem
-  private case class PackageFileLacksPackageObject(path: Path) extends Problem
-  private case class PackageFileWithMultiplePackageObjects(path: Path) extends Problem
-  private case class PackageNotUnderRequiredRoot(path: Path, parsedPkgDecl: ParsedPkgDecl)
-    extends Problem
+  sealed trait Problem {
+    def show: String
+  }
+  private case class MkDirWouldFailDueToFileInTheWay(path: Path)
+      extends Problem {
+    override def show: String =
+      s"This needs to be a directory but is a file: $path"
+  }
+  private case class MultipleSourcesForDestination(destination: Path,
+                                                   sources: List[Path])
+      extends Problem {
 
-  private def fail(msg: String): Nothing = sys.error(s"$msg. Exiting. Repair and rerun.")
+    override def show: String =
+      s"Multiple files need to be moved to the same destination, $destination: " +
+        s"${sources.mkString(", ")}"
+  }
+  private case class NoPackageDeclarations(path: Path) extends Problem {
+    override def show: String =
+      s"No package declarations found in $path"
+  }
+  private case class PackageFileLacksPackageObject(path: Path) extends Problem {
+    override def show: String =
+      s"package file lacks a package object: $path"
+  }
+  private case class PackageFileWithMultiplePackageObjects(path: Path)
+      extends Problem {
+    override def show: String =
+      s"package file has multiple package objects: $path"
+  }
+  private case class PackageNotUnderRequiredRoot(path: Path,
+                                                 parsedPkgDecl: ParsedPkgDecl)
+      extends Problem {
+
+    override def show: String =
+      s"""Package for file $path is "${parsedPkgDecl.toShortString}", """ +
+        s"which is outside of the expected containing package"
+  }
+
+  private def fail(msg: String): Nothing =
+    sys.error(s"$msg. Exiting. Repair and rerun.")
 }
 
 @main
-def main(scalaProjectRootDir: String, containingPackagePath: String, reallyDoIt: Boolean): Unit = {
+def main(scalaProjectRootDir: String, containingPackagePath: String, dryRun: Boolean): Unit = {
   val projectRoot = Path(new java.io.File(scalaProjectRootDir).getAbsoluteFile)
   println(projectRoot)
   PackageFolderAligner.alignProject(
     projectRoot,
     PackageFolderAligner.ParsedPkgDecl.parsePackagePath(containingPackagePath),
-    reallyDoIt)
+    dryRun)
 }

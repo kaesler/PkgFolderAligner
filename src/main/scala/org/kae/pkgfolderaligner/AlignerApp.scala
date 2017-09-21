@@ -10,8 +10,9 @@ object AlignerApp {
 
     PackageFolderAligner.alignProject(
       projectRoot,
-      PackageFolderAligner.ParsedPkgDecl.parsePackagePath(containingPackagePath),
-      reallyDoIt = false)
+      PackageFolderAligner.ParsedPkgDecl.parsePackagePath(
+        containingPackagePath),
+      dryRun = false)
   }
 
 }
