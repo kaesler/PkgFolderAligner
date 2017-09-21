@@ -12,6 +12,7 @@ import ammonite.ops._
  * them. If any files need editing before it can proceed it will
  * report the problems requiring manual repair, and do nothing.
  *
+ * TODO: Use "git mv" when appropriate
  */
 object PackageFolderAligner {
 
@@ -219,7 +220,7 @@ object PackageFolderAligner {
     }
   }
 
-  private case class ParsedPkgDecl(parts: Vector[String]) {
+  case class ParsedPkgDecl(parts: Vector[String]) {
     def ++ (other: ParsedPkgDecl): ParsedPkgDecl = copy(
       parts = this.parts ++ other.parts
     )
@@ -239,19 +240,31 @@ object PackageFolderAligner {
     }
   }
 
-  private object ParsedPkgDecl {
+  object ParsedPkgDecl {
     private val regexp = """^package\s+([a-zA-Z][a-zA-Z0-9\._]*)$""".r
 
+    /**
+     * Parse a line containing a package decl
+     * @param line something like "package a.b.c"
+     * @return the [[ParsedPkgDecl]] if found
+     */
     def parseLine(line: String): Option[ParsedPkgDecl] = line match {
-      case regexp(p) =>
-        val parts = p.split('.')
-        if (parts.isEmpty) {
-          None
-        } else {
-          Some(ParsedPkgDecl(parts.toVector))
-        }
-
+      case regexp(path) => parsePackagePath(path)
       case _ => None
+    }
+
+    /**
+     * Parse a string containing a package path
+     * @param path something like "a.b.c"
+     * @return
+     */
+    def parsePackagePath(path: String): Option[ParsedPkgDecl] = {
+      val parts = path.split('.')
+      if (parts.isEmpty) {
+        None
+      } else {
+        Some(ParsedPkgDecl(parts.toVector))
+      }
     }
   }
 
